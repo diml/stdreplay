@@ -1,6 +1,8 @@
 #include <util.h>
 
 #include <caml/mlvalues.h>
+#include <caml/unixsupport.h>
+#include <caml/alloc.h>
 
 CAMLprim value stdreplay_forkpty()
 {

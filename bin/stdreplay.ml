@@ -27,7 +27,7 @@ let main () =
   | In_the_parent child ->
     let _th1 : Thread.t = Thread.create forward (Unix.stdin, child.pty) in
     let _th2 : Thread.t = Thread.create forward (child.pty, Unix.stdin) in
-    match snd (Unix.waitpid child.pid []) with
+    match snd (Unix.waitpid [] child.pid) with
     | WEXITED n -> exit n
     | WSIGNALED n -> exit 255
     | WSTOPPED _ -> assert false
