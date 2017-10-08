@@ -2,4 +2,4 @@
 
 (executable
  ((name stdreplay)
-  (libraries (forkpty threads))))
+  (libraries (forkpty threads cmdliner stdio base))))

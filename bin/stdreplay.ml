@@ -1,45 +1,63 @@
-external sys_exit : int -> _ = "caml_sys_exit"
+module Cli = struct
+  open Cmdliner
 
-let in_the_child () =
-  let argv = Array.sub Sys.argv 1 (Array.length Sys.argv - 1) in
-  Unix.putenv "STDREPLAY" "recording";
-  try
-    Unix.execvp argv.(0) argv
-  with _ ->
-    sys_exit 127
+  let record =
+    ( Term.(const Record.record
+            $ Arg.(value
+                   & opt string "log"
+                   & info ["o"; "output"]
+                     ~docv:"LOG-FILE"
+                     ~doc:"Output file where to write data captured from stdin.")
+            $ Arg.(required
+                   & pos 0 (some string) None (Arg.info [] ~docv:"PROG"))
+            $ Arg.(value
+                   & pos_right 0 string [] (Arg.info [] ~docv:"ARGS")))
+    , Term.info "record"
+        ~doc:"Run a command recording everything it receives on stdin"
+        ~man:[ `S "DESCRIPTION"
+             ; `P {|$(b,stdreplay record) $(u,command) runs $(u,command) and
+                    record everything that comes from stdin to a log file.|}
+             ]
+    )
 
-let forward (fd1, fd2) =
-  let buf = Bytes.create 1 in
-  let rec loop () =
-    if Unix.read fd1 buf 0 1 = 1 then begin
-      if Unix.write fd2 buf 0 1 = 1 then
-        loop ()
-    end
-  in
-  loop ()
+  let replay =
+    ( Term.(const Replay.replay
+            $ Arg.(value
+                   & opt string "log"
+                   & info ["i"; "input"]
+                     ~docv:"LOG-FILE"
+                     ~doc:"Read stdin data from this file.")
+            $ Arg.(required
+                   & pos 0 (some string) None (Arg.info [] ~docv:"PROG"))
+            $ Arg.(value
+                   & pos_right 0 string [] (Arg.info [] ~docv:"ARGS")))
+    , Term.info "replay"
+        ~doc:"Run a command and replay previously captured stdin data"
+        ~man:[ `S "DESCRIPTION"
+             ; `P {|$(b,stdreplay record) $(u,command) runs $(u,command) and
+                    send on its stdin everything that was previously captured..|}
+             ]
+    )
 
-let setup_term fd =
-  let attr = Unix.tcgetattr fd in
-  at_exit (fun () -> try Unix.tcsetattr fd Unix.TCSAFLUSH attr with _ -> ());
-  Unix.tcsetattr fd Unix.TCSAFLUSH
-    { attr with
-      Unix.c_echo   = false
-    ; Unix.c_icanon = false
-    ; Unix.c_isig   = false
-    }
+  let all =
+    [ record
+    ; replay
+    ]
 
-let () =
-  if Array.length Sys.argv < 2 then begin
-    prerr_endline "Usage: stdreplay <prog> <args>...";
-    exit 2
-  end;
-  match Forkpty.forkpty () with
-  | In_the_child -> in_the_child ()
-  | In_the_parent child ->
-    setup_term Unix.stdin;
-    let _th1 : Thread.t = Thread.create forward (Unix.stdin, child.pty) in
-    let _th2 : Thread.t = Thread.create forward (child.pty, Unix.stdin) in
-    match snd (Unix.waitpid [] child.pid) with
-    | WEXITED   n -> exit n
-    | WSIGNALED n -> exit 255
-    | WSTOPPED  _ -> assert false
+  let default =
+    ( Term.(ret (const (`Help (`Pager, None))))
+    , Term.info "stdreplay"
+        ~doc:"stdin record & replay"
+        ~version:"%%VERSION%%"
+        ~man:
+          [ `S "DESCRIPTION"
+          ; `P {|$(b,stdreplay) is a tool for recording stdin and replaying it
+                 step by step. It's purpose is to create replayable sessions for
+                 creating video turorials.|}
+          ]
+    )
+
+  let run () = ignore (Term.eval_choice default all : _ Term.result)
+end
+
+let () = Cli.run ()
