@@ -1,2 +1,2 @@
-(** [replay log_fn prog args] *)
-val replay : string -> string -> string list -> unit
+(** [replay log_fn] *)
+val replay : string -> unit

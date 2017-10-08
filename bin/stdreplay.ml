@@ -2,20 +2,28 @@ module Cli = struct
   open Cmdliner
 
   let record =
-    ( Term.(const Record.record
+    let run log_file prog args =
+      let prog =
+        match prog with
+        | Some x -> x
+        | None -> (Unix.getpwuid (Unix.getuid ())).pw_shell
+      in
+      Record.record ~log_file ~prog ~args
+    in
+    ( Term.(const run
             $ Arg.(value
                    & opt string "log"
                    & info ["o"; "output"]
                      ~docv:"LOG-FILE"
                      ~doc:"Output file where to write data captured from stdin.")
-            $ Arg.(required
+            $ Arg.(value
                    & pos 0 (some string) None (Arg.info [] ~docv:"PROG"))
             $ Arg.(value
                    & pos_right 0 string [] (Arg.info [] ~docv:"ARGS")))
     , Term.info "record"
         ~doc:"Run a command recording everything it receives on stdin"
         ~man:[ `S "DESCRIPTION"
-             ; `P {|$(b,stdreplay record) $(u,command) runs $(u,command) and
+             ; `P {|$(b,stdreplay record) $(b,command) runs $(b,command) and
                     record everything that comes from stdin to a log file.|}
              ]
     )
@@ -23,18 +31,11 @@ module Cli = struct
   let replay =
     ( Term.(const Replay.replay
             $ Arg.(value
-                   & opt string "log"
-                   & info ["i"; "input"]
-                     ~docv:"LOG-FILE"
-                     ~doc:"Read stdin data from this file.")
-            $ Arg.(required
-                   & pos 0 (some string) None (Arg.info [] ~docv:"PROG"))
-            $ Arg.(value
-                   & pos_right 0 string [] (Arg.info [] ~docv:"ARGS")))
+                   & pos 0 string "log" (Arg.info [] ~docv:"FILE")))
     , Term.info "replay"
         ~doc:"Run a command and replay previously captured stdin data"
         ~man:[ `S "DESCRIPTION"
-             ; `P {|$(b,stdreplay record) $(u,command) runs $(u,command) and
+             ; `P {|$(b,stdreplay record) $(b,command) runs $(b,command) and
                     send on its stdin everything that was previously captured..|}
              ]
     )

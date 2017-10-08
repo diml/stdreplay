@@ -52,11 +52,24 @@ let explode = function
     |> decompose_block
 
 let load fn =
-  let lines = In_channel.read_lines fn in
-  List.map lines ~f:explode
-  |> List.filter ~f:(function
-    | [] -> false
-    | _ -> true)
+  let invalid () =
+    Printf.ksprintf failwith "%s: invalid format" fn
+  in
+  match In_channel.read_lines fn with
+  | [] -> invalid ()
+  | spec :: lines ->
+    let prog, args =
+      match String.split spec ~on:'\000' with
+      | [] -> invalid ()
+      | prog :: args -> prog, args
+    in
+    let blocks =
+      List.map lines ~f:explode
+      |> List.filter ~f:(function
+        | [] -> false
+        | _ -> true)
+    in
+    (prog, args, blocks)
 
 let setup_term fd =
   let attr = Unix.tcgetattr fd in
@@ -68,8 +81,8 @@ let setup_term fd =
     ; Unix.c_isig   = false
     }
 
-let replay log_fn prog args =
-  let blocks = load log_fn in
+let replay log_fn =
+  let prog, args, blocks = load log_fn in
   if false then
     List.iter blocks ~f:(fun keys ->
       List.iter keys ~f:(Caml.Printf.printf " %S");
