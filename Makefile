@@ -2,7 +2,7 @@ INSTALL_ARGS := $(if $(PREFIX),--prefix $(PREFIX),)
 
 .PHONY: all
 all:
-	jbuilder build @all
+	jbuilder build
 
 .PHONY: install
 install:
