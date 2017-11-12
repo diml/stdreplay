@@ -58,6 +58,10 @@ let load fn =
   match In_channel.read_lines fn with
   | [] -> invalid ()
   | spec :: lines ->
+    let lines =
+      List.filter lines ~f:(fun x ->
+        not (String.is_empty x) && not (String.is_prefix x ~prefix:"## "))
+    in
     let prog, args =
       match String.split spec ~on:'\000' with
       | [] -> invalid ()
