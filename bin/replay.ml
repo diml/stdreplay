@@ -58,17 +58,22 @@ let load fn =
   match In_channel.read_lines fn with
   | [] -> invalid ()
   | spec :: lines ->
-    let lines =
-      List.filter lines ~f:(fun x ->
-        not (String.is_empty x) && not (String.is_prefix x ~prefix:"## "))
-    in
     let prog, args =
       match String.split spec ~on:'\000' with
       | [] -> invalid ()
       | prog :: args -> prog, args
     in
     let blocks =
-      List.map lines ~f:explode
+      List.mapi lines ~f:(fun i line ->
+        if String.is_prefix line ~prefix:"## " then
+          []
+        else
+          try
+            explode line
+          with exn ->
+            Caml.Printf.eprintf "%s:%d: %S\n" fn i line;
+            Caml.Printf.eprintf "%s:%d: %s\n" fn i (Exn.to_string exn);
+            Caml.exit 2)
       |> List.filter ~f:(function
         | [] -> false
         | _ -> true)
