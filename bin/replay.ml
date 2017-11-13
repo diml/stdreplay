@@ -103,7 +103,7 @@ let wait fd1 fd2 =
   let rec loop () =
     if Unix.read fd1 buf 0 1 = 1 then
       match buf.[0] with
-      | '\024' -> Unix.close fd2; Caml.exit 0
+      | '\024' -> Unix.kill (Unix.getpid ()) Caml.Sys.sigint
       | ' ' -> ()
       | c -> assert (Unix.write fd2 buf 0 1 = 1); loop ()
   in
