@@ -103,7 +103,7 @@ let wait fd1 fd2 =
   let rec loop () =
     if Unix.read fd1 buf 0 1 = 1 then
       match buf.[0] with
-      | '\024' -> Caml.exit 0
+      | '\024' -> Unix.close fd2; Caml.exit 0
       | ' ' -> ()
       | c -> assert (Unix.write fd2 buf 0 1 = 1); loop ()
   in
@@ -126,12 +126,12 @@ let replay log_fn =
     Forward.spawn pty Unix.stdin;
     let delay = ref delay_slow in
     List.iter blocks ~f:(fun cmd ->
-      wait Unix.stdin pty;
       match cmd with
       | Fast -> delay := delay_fast
       | Slow -> delay := delay_slow
       | Input keys ->
+        wait Unix.stdin pty;
         List.iter keys ~f:(fun s ->
           let len = String.length s in
           assert (Unix.write pty s 0 len = len);
-          Unix.sleepf 0.05)))
+          Unix.sleepf !delay)))
