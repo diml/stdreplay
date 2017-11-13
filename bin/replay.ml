@@ -51,6 +51,11 @@ let explode = function
     Caml.Scanf.unescaped s
     |> decompose_block
 
+type command =
+  | Input of string list
+  | Fast
+  | Slow
+
 let load fn =
   let invalid () =
     Printf.ksprintf failwith "%s: invalid format" fn
@@ -66,16 +71,19 @@ let load fn =
     let blocks =
       List.mapi lines ~f:(fun i line ->
         if String.is_prefix line ~prefix:"## " then
-          []
-        else
-          try
-            explode line
-          with exn ->
-            Caml.Printf.eprintf "%s:%d: %S\n" fn i line;
-            Caml.Printf.eprintf "%s:%d: %s\n" fn i (Exn.to_string exn);
-            Caml.exit 2)
+          Input []
+        else match line with
+          | "##fast" -> Fast
+          | "##slow" -> Slow
+          | _ ->
+            try
+              Input (explode line)
+            with exn ->
+              Caml.Printf.eprintf "%s:%d: %S\n" fn i line;
+              Caml.Printf.eprintf "%s:%d: %s\n" fn i (Exn.to_string exn);
+              Caml.exit 2)
       |> List.filter ~f:(function
-        | [] -> false
+        | Input [] -> false
         | _ -> true)
     in
     (prog, args, blocks)
@@ -101,18 +109,29 @@ let wait fd1 fd2 =
   in
   loop ()
 
+
+let delay_fast = 0.01
+let delay_slow = 0.05
+
 let replay log_fn =
   let prog, args, blocks = load log_fn in
-  if false then
-    List.iter blocks ~f:(fun keys ->
-      List.iter keys ~f:(Caml.Printf.printf " %S");
-      Caml.Printf.printf "\n%!");
+  (*  {[
+       if false then
+         List.iter blocks ~f:(fun keys ->
+           List.iter keys ~f:(Caml.Printf.printf " %S");
+           Caml.Printf.printf "\n%!");
+     ]} *)
   Spawn.spawn ~prog ~args ~mode:"replaying" ~f:(fun pty ->
     setup_term Unix.stdin;
     Forward.spawn pty Unix.stdin;
-    List.iter blocks ~f:(fun keys ->
+    let delay = ref delay_slow in
+    List.iter blocks ~f:(fun cmd ->
       wait Unix.stdin pty;
-      List.iter keys ~f:(fun s ->
-        let len = String.length s in
-        assert (Unix.write pty s 0 len = len);
-        Unix.sleepf 0.05)))
+      match cmd with
+      | Fast -> delay := delay_fast
+      | Slow -> delay := delay_slow
+      | Input keys ->
+        List.iter keys ~f:(fun s ->
+          let len = String.length s in
+          assert (Unix.write pty s 0 len = len);
+          Unix.sleepf 0.05)))
