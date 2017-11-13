@@ -90,18 +90,28 @@ let setup_term fd =
     ; Unix.c_isig   = false
     }
 
+let wait fd1 fd2 =
+  let buf = String.create 1 in
+  let rec loop () =
+    if Unix.read fd1 buf 0 1 = 1 then
+      match buf.[0] with
+      | '\024' -> Caml.exit 0
+      | ' ' -> ()
+      | c -> assert (Unix.write fd2 buf 0 1 = 1); loop ()
+  in
+  loop ()
+
 let replay log_fn =
   let prog, args, blocks = load log_fn in
   if false then
     List.iter blocks ~f:(fun keys ->
       List.iter keys ~f:(Caml.Printf.printf " %S");
       Caml.Printf.printf "\n%!");
-  let buf = String.create 256 in
   Spawn.spawn ~prog ~args ~mode:"replaying" ~f:(fun pty ->
     setup_term Unix.stdin;
     Forward.spawn pty Unix.stdin;
     List.iter blocks ~f:(fun keys ->
-      ignore (Unix.read Unix.stdin buf 0 (String.length buf) : int);
+      wait Unix.stdin pty;
       List.iter keys ~f:(fun s ->
         let len = String.length s in
         assert (Unix.write pty s 0 len = len);
