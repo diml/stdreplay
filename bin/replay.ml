@@ -110,8 +110,8 @@ let wait fd1 fd2 =
   loop ()
 
 
-let delay_fast = 0.01
-let delay_slow = 0.05
+let delay_fast = None
+let delay_slow = Some 0.05
 
 let replay log_fn =
   let prog, args, blocks = load log_fn in
@@ -134,4 +134,4 @@ let replay log_fn =
         List.iter keys ~f:(fun s ->
           let len = String.length s in
           assert (Unix.write pty s 0 len = len);
-          Unix.sleepf !delay)))
+          Option.iter !delay ~f:Unix.sleepf)))
