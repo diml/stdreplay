@@ -29,7 +29,12 @@ module Cli = struct
     )
 
   let replay =
-    ( Term.(const Replay.replay
+    ( Term.(const (fun auto log_file -> Replay.replay ~log_file ~auto)
+            $ Arg.(value
+                   & opt (some string) None
+                   & info ["auto"]
+                       ~docv:"TIMINGS-FILE"
+                       ~doc:"Read steps from this file.")
             $ Arg.(value
                    & pos 0 string "log" (Arg.info [] ~docv:"FILE")))
     , Term.info "replay"

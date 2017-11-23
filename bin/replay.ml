@@ -1,4 +1,5 @@
 open Import
+open Float.O_dot
 
 let decompose_block s =
   let rec seq acc = function
@@ -98,22 +99,68 @@ let setup_term fd =
     ; Unix.c_isig   = false
     }
 
-let wait fd1 fd2 =
+type timings =
+  | Save of string
+  | Use  of float list ref
+
+let wait fd1 fd2 ~start ~timings =
   let buf = String.create 1 in
-  let rec loop () =
-    if Unix.read fd1 buf 0 1 = 1 then
+  let timeout =
+    match timings with
+    | Save _ -> None
+    | Use r ->
+      match !r with
+      | []     -> None
+      | x :: l ->
+        r := l;
+        Some (start +. x)
+  in
+  let rec loop timeout =
+    let timed_out =
+      match timeout with
+      | None -> false
+      | Some t ->
+        let d = t -. (Unix.gettimeofday ()) in
+        if Float.(<=) d 0. then
+          true
+        else
+          match Unix.select [fd1] [] [] d with
+          | [], [], [] -> true
+          | _ -> false
+    in
+    if timed_out then
+      ()
+    else if Unix.read fd1 buf 0 1 = 1 then
       match buf.[0] with
       | '\024' -> Unix.kill (Unix.getpid ()) Caml.Sys.sigint
       | ' ' -> ()
-      | c -> assert (Unix.write fd2 buf 0 1 = 1); loop ()
+      | c -> assert (Unix.write fd2 buf 0 1 = 1); loop timeout
+    else
+      ()
   in
-  loop ()
+  loop timeout;
+  let t = Unix.gettimeofday () in
+  (match timings with
+   | Use _ -> ()
+   | Save fn ->
+     let oc = Out_channel.create ~append:true fn in
+     Out_channel.fprintf oc "%f\n" (t -. start);
+     Out_channel.close oc);
+  t
+
 
 
 let delay_fast = None
 let delay_slow = Some 0.05
 
-let replay log_fn =
+let rec find_free_timings_file n =
+  let fn = Printf.sprintf "timings%d" n in
+  if Caml.Sys.file_exists fn then
+    find_free_timings_file (n + 1)
+  else
+    fn
+
+let replay ~log_file:log_fn ~auto =
   let prog, args, blocks = load log_fn in
   (*  {[
        if false then
@@ -121,16 +168,28 @@ let replay log_fn =
            List.iter keys ~f:(Caml.Printf.printf " %S");
            Caml.Printf.printf "\n%!");
      ]} *)
+  let timings =
+    match auto with
+    | Some fn ->
+      Use (ref
+             (In_channel.read_lines fn
+              |> List.map ~f:Float.of_string))
+    | None ->
+      let fn = find_free_timings_file 1 in
+      Caml.close_out (Caml.open_out fn);
+      Save fn
+  in
   Spawn.spawn ~prog ~args ~mode:"replaying" ~f:(fun pty ->
     setup_term Unix.stdin;
     Forward.spawn pty Unix.stdin;
     let delay = ref delay_slow in
+    let t = ref (Unix.gettimeofday ()) in
     List.iter blocks ~f:(fun cmd ->
       match cmd with
       | Fast -> delay := delay_fast
       | Slow -> delay := delay_slow
       | Input keys ->
-        wait Unix.stdin pty;
+        t := wait Unix.stdin pty ~timings ~start:!t;
         List.iter keys ~f:(fun s ->
           let len = String.length s in
           assert (Unix.write pty s 0 len = len);

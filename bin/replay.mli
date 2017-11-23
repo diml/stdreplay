@@ -1,2 +1,2 @@
 (** [replay log_fn] *)
-val replay : string -> unit
+val replay : log_file:string -> auto:string option -> unit
