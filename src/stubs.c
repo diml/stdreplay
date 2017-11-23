@@ -2,7 +2,12 @@
 #include <caml/unixsupport.h>
 #include <caml/alloc.h>
 
+#if defined(__APPLE__)
 #include <util.h>
+#else
+#include <pty.h>
+#endif
+
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
