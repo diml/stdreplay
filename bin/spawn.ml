@@ -15,6 +15,6 @@ let spawn ~prog ~args ~mode ~f =
     f pty;
     match snd (Unix.waitpid [] pid) with
     | WEXITED   n -> exit n
-    | WSIGNALED n -> exit 255
+    | WSIGNALED _ -> exit 255
     | WSTOPPED  _ -> assert false
 

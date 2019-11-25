@@ -9,7 +9,7 @@ let add_to_log fn buf n =
         Char.escaped c
     in
     let len = String.length s in
-    assert (Unix.write fd s 0 len = len);
+    assert (Unix.write_substring fd s 0 len = len);
   done;
   Unix.close fd
 

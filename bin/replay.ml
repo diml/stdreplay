@@ -104,7 +104,7 @@ type timings =
   | Use  of float list ref
 
 let wait fd1 fd2 ~start ~timings =
-  let buf = String.create 1 in
+  let buf = Bytes.create 1 in
   let timeout =
     match timings with
     | Save _ -> None
@@ -131,10 +131,10 @@ let wait fd1 fd2 ~start ~timings =
     if timed_out then
       ()
     else if Unix.read fd1 buf 0 1 = 1 then
-      match buf.[0] with
+      match Bytes.get buf 0 with
       | '\024' -> Unix.kill (Unix.getpid ()) Caml.Sys.sigint
       | ' ' -> ()
-      | c -> assert (Unix.write fd2 buf 0 1 = 1); loop timeout
+      | _ -> assert (Unix.write fd2 buf 0 1 = 1); loop timeout
     else
       ()
   in
@@ -192,5 +192,5 @@ let replay ~log_file:log_fn ~auto =
         t := wait Unix.stdin pty ~timings ~start:!t;
         List.iter keys ~f:(fun s ->
           let len = String.length s in
-          assert (Unix.write pty s 0 len = len);
+          assert (Unix.write_substring pty s 0 len = len);
           Option.iter !delay ~f:Unix.sleepf)))
